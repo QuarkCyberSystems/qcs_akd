@@ -168,6 +168,63 @@ ITEM_TAX_CLIENT_SCRIPT_NAME = "AKD Item Tax Default"
 # Incoterm hidden — used internally if needed via Customize Form.
 # From Date hidden — covered by posting_date.
 AKD_CURRENCIES = ["AED", "USD", "EUR", "INR", "QAR", "SAR", "NGN", "GBP"]
+
+# Dynamic Letter Head — pulls branding from Company + linked Address + Bank Account
+# (header logo, TRN, phone, email, website; footer: 3 offices + bank IBANs).
+AKD_LETTER_HEAD_NAME = "AKD Letter Head"
+
+AKD_LETTER_HEAD_HEADER = """\
+{%- set company = doc.company or 'AKD Consulting LLC' -%}
+{%- set co = frappe.db.get_value("Company", company, ["company_logo", "tax_id", "website", "email", "phone_no"], as_dict=True) -%}
+<table style="width:100%;border-bottom:2px solid #1F4E78;padding-bottom:8px;margin-bottom:8px;">
+  <tr>
+    <td style="width:30%;vertical-align:middle;">
+      {% if co and co.company_logo %}
+        <img src="{{ co.company_logo }}" style="height:60px;"/>
+      {% else %}
+        <h2 style="margin:0;color:#1F4E78;">{{ company }}</h2>
+      {% endif %}
+    </td>
+    <td style="text-align:right;vertical-align:middle;font-size:10px;color:#333;line-height:1.4;">
+      <b style="color:#1F4E78;font-size:11px;">{{ company }}</b><br/>
+      {% if co and co.tax_id %}TRN: {{ co.tax_id }} | License: 1403338<br/>{% endif %}
+      {% if co and co.phone_no %}Tel: {{ co.phone_no }}{% endif %}
+      {% if co and co.email %} | {{ co.email }}{% endif %}<br/>
+      {% if co and co.website %}{{ co.website }}{% endif %}
+    </td>
+  </tr>
+</table>
+"""
+
+AKD_LETTER_HEAD_FOOTER = """\
+{%- set company = doc.company or 'AKD Consulting LLC' -%}
+{%- set address_names = frappe.get_all("Dynamic Link", filters={"link_doctype":"Company","link_name":company,"parenttype":"Address"}, pluck="parent") -%}
+{%- set bank_accounts = frappe.get_all("Bank Account", filters={"company":company,"is_company_account":1,"disabled":0}, fields=["account_name","iban","swift_number"]) -%}
+<div style="font-size:8px;color:#555;border-top:1px solid #ccc;padding-top:6px;margin-top:8px;">
+  <table style="width:100%;font-size:8px;line-height:1.3;">
+    <tr>
+      {% for an in address_names %}
+        {%- set a = frappe.db.get_value("Address", an, ["address_title","address_line1","address_line2","city","country","phone"], as_dict=True) -%}
+        {% if a %}
+        <td style="padding:4px 8px;vertical-align:top;width:33%;">
+          <b style="color:#1F4E78;">{{ a.address_title }}</b><br/>
+          {{ a.address_line1 }}{% if a.address_line2 %}<br/>{{ a.address_line2 }}{% endif %}<br/>
+          {{ a.city }}{% if a.country %}, {{ a.country }}{% endif %}
+          {% if a.phone %}<br/>Tel: {{ a.phone }}{% endif %}
+        </td>
+        {% endif %}
+      {% endfor %}
+    </tr>
+  </table>
+  {% if bank_accounts %}
+  <div style="margin-top:6px;text-align:center;border-top:1px dotted #ddd;padding-top:4px;">
+    {% for b in bank_accounts %}
+      <b>{{ b.account_name }}</b> · IBAN {{ b.iban or '-' }} · SWIFT {{ b.swift_number or '-' }}{% if not loop.last %} &nbsp;|&nbsp; {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+"""
 # NGN — Nigeria operations (Port Harcourt + Abuja offices, FR-BUY-74 + FR-SELL-50)
 # GBP — international supplier currency per FR-BUY-74
 
@@ -252,6 +309,7 @@ def after_install():
         _ensure_item_tax_autofill_script,
         _ensure_txn_fields_hidden,
         _ensure_akd_currencies_enabled,
+        _ensure_akd_letter_head,
     ]
     skipped = []
     try:
@@ -511,6 +569,29 @@ def _ensure_akd_currencies_enabled():
         if frappe.db.get_value("Currency", cur, "enabled") == 1:
             continue
         frappe.db.set_value("Currency", cur, "enabled", 1)
+
+
+def _ensure_akd_letter_head():
+    """Create/refresh the dynamic AKD Letter Head — Jinja-driven from Company,
+    linked Addresses, and Bank Account doctype. Always re-syncs templates so
+    template improvements ship with the app."""
+    if frappe.db.exists("Letter Head", AKD_LETTER_HEAD_NAME):
+        lh = frappe.get_doc("Letter Head", AKD_LETTER_HEAD_NAME)
+        lh.source = "HTML"
+        lh.content = AKD_LETTER_HEAD_HEADER
+        lh.footer_source = "HTML"
+        lh.footer = AKD_LETTER_HEAD_FOOTER
+        lh.is_default = 1
+        lh.save(ignore_permissions=True)
+        return
+    doc = frappe.new_doc("Letter Head")
+    doc.letter_head_name = AKD_LETTER_HEAD_NAME
+    doc.is_default = 1
+    doc.source = "HTML"
+    doc.content = AKD_LETTER_HEAD_HEADER
+    doc.footer_source = "HTML"
+    doc.footer = AKD_LETTER_HEAD_FOOTER
+    doc.insert(ignore_permissions=True)
 
 
 def _ensure_cost_centers(company):
