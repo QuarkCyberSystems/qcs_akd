@@ -126,6 +126,20 @@ OPPORTUNITY_LOST_REASONS = [
     "Price", "Competitor", "Timing", "Budget", "No decision", "Technical fit",
 ]
 
+# AKD is a consulting/services company (FR-QA-11). Items are services or fixed
+# assets, not stock. Customize the Item form so stock fields default off and hide.
+ITEM_FORM_CUSTOMIZATIONS = [
+    # (field_name, property, property_type, value)
+    ("is_stock_item",                 "default", "Text", "0"),    # Maintain Stock = unchecked
+    ("is_stock_item",                 "hidden",  "Check", "1"),    # hide the checkbox
+    ("include_item_in_manufacturing", "default", "Text", "0"),    # no manufacturing
+    ("include_item_in_manufacturing", "hidden",  "Check", "1"),
+    ("is_sub_contracted_item",        "hidden",  "Check", "1"),    # subcontracting OOS per BRD
+    ("has_serial_no",                 "hidden",  "Check", "1"),    # stock feature only
+    ("has_batch_no",                  "hidden",  "Check", "1"),    # stock feature only
+    ("has_variants",                  "hidden",  "Check", "1"),    # item variants overkill
+]
+
 
 # ---------------------------------------------------------------------------
 # after_install — runs on `bench install-app qcs_akd`
@@ -147,6 +161,7 @@ def after_install():
         _ensure_lead_sources()
         _ensure_quotation_lost_reasons()
         _ensure_opportunity_lost_reasons()
+        _ensure_item_form_customizations()
         frappe.db.commit()
         print("[qcs_akd] after_install: AKD reference masters created.")
     finally:
@@ -296,6 +311,17 @@ def _ensure_opportunity_lost_reasons():
         doc = frappe.new_doc("Opportunity Lost Reason")
         doc.lost_reason = r
         doc.insert(ignore_permissions=True)
+
+
+def _ensure_item_form_customizations():
+    """Service-company Item form: stock fields hidden + Maintain Stock defaults off."""
+    from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+    for field_name, prop, prop_type, value in ITEM_FORM_CUSTOMIZATIONS:
+        ps_name = f"Item-{field_name}-{prop}"
+        if frappe.db.exists("Property Setter", ps_name):
+            continue
+        make_property_setter("Item", field_name, prop, value, prop_type,
+                              for_doctype=False, validate_fields_for_doctype=False)
 
 
 def _ensure_cost_centers(company):
