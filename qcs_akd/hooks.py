@@ -83,7 +83,7 @@ app_license = "mit"
 # ------------
 
 # before_install = "qcs_akd.install.before_install"
-# after_install = "qcs_akd.install.after_install"
+after_install = "qcs_akd.install.after_install"
 
 # Uninstallation
 # ------------

@@ -5,3 +5,7 @@
 tags
 node_modules
 __pycache__
+
+# Project working folders — excluded from upstream
+docs/
+cutover/
