@@ -160,6 +160,58 @@ frappe.ui.form.on('Item', {
 """
 ITEM_TAX_CLIENT_SCRIPT_NAME = "AKD Item Tax Default"
 
+# Hide rarely-used / not-applicable fields from the 7 main transaction forms.
+# Each row is (doctype, fieldname). Property Setter sets hidden=1.
+# Naming Series is hidden because AKD uses Document Naming Rule instead.
+# Stock-related fields hidden because AKD is a service company.
+# Time Sheet List hidden on Sales Invoice — SO→SI flow auto-populates.
+# Incoterm hidden — used internally if needed via Customize Form.
+# From Date hidden — covered by posting_date.
+TXN_FIELDS_TO_HIDE = [
+    # naming_series — all 7
+    ("Sales Invoice",    "naming_series"),
+    ("Delivery Note",    "naming_series"),
+    ("Sales Order",      "naming_series"),
+    ("Quotation",        "naming_series"),
+    ("Purchase Invoice", "naming_series"),
+    ("Purchase Receipt", "naming_series"),
+    ("Purchase Order",   "naming_series"),
+    # scan_barcode — all 7
+    ("Sales Invoice",    "scan_barcode"),
+    ("Delivery Note",    "scan_barcode"),
+    ("Sales Order",      "scan_barcode"),
+    ("Quotation",        "scan_barcode"),
+    ("Purchase Invoice", "scan_barcode"),
+    ("Purchase Receipt", "scan_barcode"),
+    ("Purchase Order",   "scan_barcode"),
+    # update_stock — SI + PI only
+    ("Sales Invoice",    "update_stock"),
+    ("Purchase Invoice", "update_stock"),
+    # shipping_rule — all 7
+    ("Sales Invoice",    "shipping_rule"),
+    ("Delivery Note",    "shipping_rule"),
+    ("Sales Order",      "shipping_rule"),
+    ("Quotation",        "shipping_rule"),
+    ("Purchase Invoice", "shipping_rule"),
+    ("Purchase Receipt", "shipping_rule"),
+    ("Purchase Order",   "shipping_rule"),
+    # incoterm — all 7
+    ("Sales Invoice",    "incoterm"),
+    ("Delivery Note",    "incoterm"),
+    ("Sales Order",      "incoterm"),
+    ("Quotation",        "incoterm"),
+    ("Purchase Invoice", "incoterm"),
+    ("Purchase Receipt", "incoterm"),
+    ("Purchase Order",   "incoterm"),
+    # timesheets — Sales Invoice only
+    ("Sales Invoice",    "timesheets"),
+    # from_date — SI / SO / PI / PO
+    ("Sales Invoice",    "from_date"),
+    ("Sales Order",      "from_date"),
+    ("Purchase Invoice", "from_date"),
+    ("Purchase Order",   "from_date"),
+]
+
 
 # ---------------------------------------------------------------------------
 # after_install — runs on `bench install-app qcs_akd`
@@ -186,6 +238,7 @@ def after_install():
         _ensure_item_form_customizations,
         _ensure_customer_tax_category_default,
         _ensure_item_tax_autofill_script,
+        _ensure_txn_fields_hidden,
     ]
     skipped = []
     try:
@@ -410,6 +463,21 @@ def _ensure_item_tax_autofill_script():
     doc.enabled = 1
     doc.script = ITEM_TAX_AUTOFILL_SCRIPT
     doc.insert(ignore_permissions=True)
+
+
+def _ensure_txn_fields_hidden():
+    """Hide rarely-used / not-applicable fields on the 7 main transaction forms.
+    See TXN_FIELDS_TO_HIDE for the matrix. Property Setter per (doctype, field)."""
+    from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+    for doctype, field in TXN_FIELDS_TO_HIDE:
+        ps_name = f"{doctype}-{field}-hidden"
+        if frappe.db.exists("Property Setter", ps_name):
+            continue
+        try:
+            make_property_setter(doctype, field, "hidden", "1", "Check",
+                                  for_doctype=False, validate_fields_for_doctype=False)
+        except Exception as e:
+            print(f"[qcs_akd] hide {doctype}.{field}: {type(e).__name__}: {e}")
 
 
 def _ensure_cost_centers(company):
