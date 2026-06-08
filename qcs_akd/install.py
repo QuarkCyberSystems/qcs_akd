@@ -167,6 +167,8 @@ ITEM_TAX_CLIENT_SCRIPT_NAME = "AKD Item Tax Default"
 # Time Sheet List hidden on Sales Invoice — SO→SI flow auto-populates.
 # Incoterm hidden — used internally if needed via Customize Form.
 # From Date hidden — covered by posting_date.
+AKD_CURRENCIES = ["AED", "USD", "EUR", "INR", "QAR", "SAR"]
+
 TXN_FIELDS_TO_HIDE = [
     # naming_series — all 7
     ("Sales Invoice",    "naming_series"),
@@ -239,6 +241,7 @@ def after_install():
         _ensure_customer_tax_category_default,
         _ensure_item_tax_autofill_script,
         _ensure_txn_fields_hidden,
+        _ensure_akd_currencies_enabled,
     ]
     skipped = []
     try:
@@ -478,6 +481,19 @@ def _ensure_txn_fields_hidden():
                                   for_doctype=False, validate_fields_for_doctype=False)
         except Exception as e:
             print(f"[qcs_akd] hide {doctype}.{field}: {type(e).__name__}: {e}")
+
+
+def _ensure_akd_currencies_enabled():
+    """Enable the currencies AKD operates in: AED, USD, EUR, INR, QAR, SAR.
+    Exchange rates are seeded by `cutover/scripts/phase_f6_currency_exchange.py`
+    on cut-over day (rates are time-sensitive — exchangerate.host auto-fetch
+    keeps them refreshed afterwards)."""
+    for cur in AKD_CURRENCIES:
+        if not frappe.db.exists("Currency", cur):
+            continue
+        if frappe.db.get_value("Currency", cur, "enabled") == 1:
+            continue
+        frappe.db.set_value("Currency", cur, "enabled", 1)
 
 
 def _ensure_cost_centers(company):
