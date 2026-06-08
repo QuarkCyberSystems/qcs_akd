@@ -140,6 +140,26 @@ ITEM_FORM_CUSTOMIZATIONS = [
     ("has_variants",                  "hidden",  "Check", "1"),    # item variants overkill
 ]
 
+# AKD default tax routing — every new Item should default to UAE VAT 5% / VAT-5;
+# every new Customer should default to VAT-5 Tax Category. Saves users a click.
+DEFAULT_TAX_CATEGORY     = "VAT-5"
+DEFAULT_ITEM_TAX_TEMPLATE = "UAE VAT 5% - ACL"
+
+ITEM_TAX_AUTOFILL_SCRIPT = """
+// Auto-fill default Tax row on new Item (AKD VAT-5)
+frappe.ui.form.on('Item', {
+    refresh: function(frm) {
+        if (frm.is_new() && (!frm.doc.taxes || frm.doc.taxes.length === 0)) {
+            const row = frm.add_child('taxes');
+            row.item_tax_template = 'UAE VAT 5% - ACL';
+            row.tax_category = 'VAT-5';
+            frm.refresh_field('taxes');
+        }
+    }
+});
+"""
+ITEM_TAX_CLIENT_SCRIPT_NAME = "AKD Item Tax Default"
+
 
 # ---------------------------------------------------------------------------
 # after_install — runs on `bench install-app qcs_akd`
@@ -164,6 +184,8 @@ def after_install():
         _ensure_quotation_lost_reasons,
         _ensure_opportunity_lost_reasons,
         _ensure_item_form_customizations,
+        _ensure_customer_tax_category_default,
+        _ensure_item_tax_autofill_script,
     ]
     skipped = []
     try:
@@ -358,6 +380,36 @@ def _ensure_item_form_customizations():
             continue
         make_property_setter("Item", field_name, prop, value, prop_type,
                               for_doctype=False, validate_fields_for_doctype=False)
+
+
+def _ensure_customer_tax_category_default():
+    """Customer.tax_category defaults to VAT-5 (saves a click on every new customer)."""
+    from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+    ps_name = "Customer-tax_category-default"
+    if frappe.db.exists("Property Setter", ps_name):
+        return
+    if not frappe.db.exists("Tax Category", DEFAULT_TAX_CATEGORY):
+        print(f"[qcs_akd] Tax Category '{DEFAULT_TAX_CATEGORY}' not found — skipping Customer default")
+        return
+    make_property_setter("Customer", "tax_category", "default", DEFAULT_TAX_CATEGORY,
+                          "Link", for_doctype=False, validate_fields_for_doctype=False)
+
+
+def _ensure_item_tax_autofill_script():
+    """Client Script: when a new Item is opened, auto-append a Tax row with
+    UAE VAT 5% - ACL + VAT-5. Skips on Items that already have a Tax row."""
+    if frappe.db.exists("Client Script", ITEM_TAX_CLIENT_SCRIPT_NAME):
+        return
+    if not frappe.db.exists("Item Tax Template", DEFAULT_ITEM_TAX_TEMPLATE):
+        print(f"[qcs_akd] Item Tax Template '{DEFAULT_ITEM_TAX_TEMPLATE}' not found — skipping autofill script")
+        return
+    doc = frappe.new_doc("Client Script")
+    doc.name = ITEM_TAX_CLIENT_SCRIPT_NAME
+    doc.dt = "Item"
+    doc.view = "Form"
+    doc.enabled = 1
+    doc.script = ITEM_TAX_AUTOFILL_SCRIPT
+    doc.insert(ignore_permissions=True)
 
 
 def _ensure_cost_centers(company):
