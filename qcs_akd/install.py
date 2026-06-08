@@ -146,24 +146,38 @@ ITEM_FORM_CUSTOMIZATIONS = [
 # ---------------------------------------------------------------------------
 
 def after_install():
-    """Create company-agnostic masters. Idempotent."""
+    """Create company-agnostic masters. Idempotent + resilient — a failure in
+    one fixture (e.g. a doctype missing on this Frappe version) does not block
+    the rest from installing."""
     frappe.flags.in_install = True
+    fixtures = [
+        _ensure_payment_terms,
+        _ensure_payment_terms_templates,
+        _ensure_modes_of_payment,
+        _ensure_customer_groups,
+        _ensure_territories,
+        _ensure_supplier_groups,
+        _ensure_item_groups,
+        _ensure_project_types,
+        _ensure_asset_categories,
+        _ensure_lead_sources,
+        _ensure_quotation_lost_reasons,
+        _ensure_opportunity_lost_reasons,
+        _ensure_item_form_customizations,
+    ]
+    skipped = []
     try:
-        _ensure_payment_terms()
-        _ensure_payment_terms_templates()
-        _ensure_modes_of_payment()
-        _ensure_customer_groups()
-        _ensure_territories()
-        _ensure_supplier_groups()
-        _ensure_item_groups()
-        _ensure_project_types()
-        _ensure_asset_categories()
-        _ensure_lead_sources()
-        _ensure_quotation_lost_reasons()
-        _ensure_opportunity_lost_reasons()
-        _ensure_item_form_customizations()
+        for fn in fixtures:
+            try:
+                fn()
+            except Exception as e:
+                # Doctype missing on this Frappe version, or other recoverable
+                # issue — log and continue so other fixtures still apply.
+                skipped.append(f"{fn.__name__}: {type(e).__name__}: {e}")
+                print(f"[qcs_akd] ⚠ {fn.__name__} skipped: {type(e).__name__}: {e}")
+                frappe.db.rollback()
         frappe.db.commit()
-        print("[qcs_akd] after_install: AKD reference masters created.")
+        print(f"[qcs_akd] after_install: {len(fixtures) - len(skipped)}/{len(fixtures)} fixtures applied; {len(skipped)} skipped.")
     finally:
         frappe.flags.in_install = False
 
@@ -286,7 +300,23 @@ def _ensure_asset_categories():
         doc.insert(ignore_permissions=True)
 
 
+def _doctype_loadable(doctype):
+    """True if both the DocType record exists AND its Python controller can be
+    imported. Newer Frappe versions move some doctypes (e.g. Lead Source)
+    out to separate CRM apps — skip cleanly when the controller is missing."""
+    if not frappe.db.exists("DocType", doctype):
+        return False
+    try:
+        frappe.get_meta(doctype)
+        return True
+    except (ImportError, ModuleNotFoundError):
+        return False
+
+
 def _ensure_lead_sources():
+    if not _doctype_loadable("Lead Source"):
+        print("[qcs_akd] Lead Source doctype not loadable on this Frappe version — skipping")
+        return
     for src in LEAD_SOURCES:
         if frappe.db.exists("Lead Source", src):
             continue
@@ -296,6 +326,9 @@ def _ensure_lead_sources():
 
 
 def _ensure_quotation_lost_reasons():
+    if not _doctype_loadable("Quotation Lost Reason"):
+        print("[qcs_akd] Quotation Lost Reason doctype not loadable — skipping")
+        return
     for r in QUOTATION_LOST_REASONS:
         if frappe.db.exists("Quotation Lost Reason", r):
             continue
@@ -305,6 +338,9 @@ def _ensure_quotation_lost_reasons():
 
 
 def _ensure_opportunity_lost_reasons():
+    if not _doctype_loadable("Opportunity Lost Reason"):
+        print("[qcs_akd] Opportunity Lost Reason doctype not loadable — skipping")
+        return
     for r in OPPORTUNITY_LOST_REASONS:
         if frappe.db.exists("Opportunity Lost Reason", r):
             continue
