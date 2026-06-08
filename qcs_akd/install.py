@@ -167,7 +167,9 @@ ITEM_TAX_CLIENT_SCRIPT_NAME = "AKD Item Tax Default"
 # Time Sheet List hidden on Sales Invoice — SO→SI flow auto-populates.
 # Incoterm hidden — used internally if needed via Customize Form.
 # From Date hidden — covered by posting_date.
-AKD_CURRENCIES = ["AED", "USD", "EUR", "INR", "QAR", "SAR"]
+AKD_CURRENCIES = ["AED", "USD", "EUR", "INR", "QAR", "SAR", "NGN", "GBP"]
+# NGN — Nigeria operations (Port Harcourt + Abuja offices, FR-BUY-74 + FR-SELL-50)
+# GBP — international supplier currency per FR-BUY-74
 
 TXN_FIELDS_TO_HIDE = [
     # naming_series — all 7
