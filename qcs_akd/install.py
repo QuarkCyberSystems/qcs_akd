@@ -188,6 +188,14 @@ TXN_FIELDS_TO_HIDE = [
     ("Purchase Invoice", "scan_barcode"),
     ("Purchase Receipt", "scan_barcode"),
     ("Purchase Order",   "scan_barcode"),
+    # last_scanned_warehouse — appears alongside scan_barcode (all 7)
+    ("Sales Invoice",    "last_scanned_warehouse"),
+    ("Delivery Note",    "last_scanned_warehouse"),
+    ("Sales Order",      "last_scanned_warehouse"),
+    ("Quotation",        "last_scanned_warehouse"),
+    ("Purchase Invoice", "last_scanned_warehouse"),
+    ("Purchase Receipt", "last_scanned_warehouse"),
+    ("Purchase Order",   "last_scanned_warehouse"),
     # update_stock — SI + PI only
     ("Sales Invoice",    "update_stock"),
     ("Purchase Invoice", "update_stock"),
@@ -472,11 +480,18 @@ def _ensure_item_tax_autofill_script():
 
 def _ensure_txn_fields_hidden():
     """Hide rarely-used / not-applicable fields on the 7 main transaction forms.
-    See TXN_FIELDS_TO_HIDE for the matrix. Property Setter per (doctype, field)."""
+    See TXN_FIELDS_TO_HIDE for the matrix. Property Setter per (doctype, field).
+
+    Defensive: if a Property Setter already exists but its value != '1' (e.g. a
+    prior customization set hidden=0 — which actively UN-hides), update it to '1'."""
     from frappe.custom.doctype.property_setter.property_setter import make_property_setter
     for doctype, field in TXN_FIELDS_TO_HIDE:
         ps_name = f"{doctype}-{field}-hidden"
         if frappe.db.exists("Property Setter", ps_name):
+            current = frappe.db.get_value("Property Setter", ps_name, "value")
+            if str(current) != "1":
+                frappe.db.set_value("Property Setter", ps_name, "value", "1")
+                print(f"[qcs_akd] ⤴ fixed {doctype}.{field}  (was {current!r} → 1)")
             continue
         try:
             make_property_setter(doctype, field, "hidden", "1", "Check",
