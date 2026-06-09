@@ -169,6 +169,45 @@ ITEM_TAX_CLIENT_SCRIPT_NAME = "AKD Item Tax Default"
 # From Date hidden — covered by posting_date.
 AKD_CURRENCIES = ["AED", "USD", "EUR", "INR", "QAR", "SAR", "NGN", "GBP"]
 
+# ---------------------------------------------------------------------------
+# AKD Role Profiles + Module Profiles (Phase F8)
+# ---------------------------------------------------------------------------
+# Pre-packed role / module access bundles per AKD job function. Users are NOT
+# created here (those go in cutover/scripts/phase_f8_users_and_profiles.py)
+# because user accounts are per-deployment data. Profiles themselves should
+# exist on every site so user creation via UI is one-click.
+
+AKD_ROLE_PROFILES = {
+    "AKD Accounts Manager":  ["Accounts Manager", "Accounts User", "Employee"],
+    "AKD Purchase Manager":  ["Purchase Manager", "Purchase User", "Stock User", "Employee"],
+    "AKD Purchase User":     ["Purchase User", "Stock User", "Employee"],
+    "AKD Sales Lead":        ["Sales Manager", "Sales User", "Projects Manager",
+                              "Projects User", "Quality Manager", "Quality Inspector",
+                              "Employee"],
+    "AKD Sales/Projects":    ["Sales User", "Projects User", "Employee"],
+    "AKD Quality Lead":      ["Quality Manager", "Quality Inspector", "Employee"],
+    "AKD System Admin":      ["System Manager", "Accounts Manager", "Sales Manager",
+                              "Purchase Manager", "Projects Manager", "Quality Manager",
+                              "Stock Manager", "HR Manager", "Employee"],
+}
+
+# Modules every AKD profile blocks (not in BRD scope / not used by service company).
+AKD_ALWAYS_BLOCKED_MODULES = [
+    "HR", "Payroll", "Manufacturing", "Education", "Healthcare", "Agriculture",
+    "Loan Management", "Non Profit", "Support", "Subcontracting", "Maintenance",
+    "Bulk Transaction", "Telephony", "Marketplace", "Hospitality", "Lending",
+]
+
+# Per-profile extra blocks (on top of AKD_ALWAYS_BLOCKED_MODULES).
+AKD_MODULE_PROFILES = {
+    "AKD Accounting":     ["Selling", "Buying", "CRM", "Projects", "Quality Management", "Stock"],
+    "AKD Buying":         ["Selling", "CRM", "Projects", "Quality Management", "Accounts", "Assets"],
+    "AKD Sales Lead":     ["Buying", "Accounts", "Assets"],
+    "AKD Sales/Projects": ["Buying", "Accounts", "Assets", "Quality Management"],
+    "AKD Quality":        ["Buying", "Selling", "Accounts", "Assets", "Projects", "CRM", "Stock"],
+    "AKD System Admin":   [],   # full access
+}
+
 # Dynamic Letter Head — pulls branding from Company + linked Address + Bank Account
 # (header logo, TRN, phone, email, website; footer: 3 offices + bank IBANs).
 AKD_LETTER_HEAD_NAME = "AKD Letter Head"
@@ -310,6 +349,8 @@ def after_install():
         _ensure_txn_fields_hidden,
         _ensure_akd_currencies_enabled,
         _ensure_akd_letter_head,
+        _ensure_akd_role_profiles,
+        _ensure_akd_module_profiles,
     ]
     skipped = []
     try:
@@ -612,4 +653,30 @@ def _ensure_cost_centers(company):
         doc.parent_cost_center = parent
         doc.company = company
         doc.is_group = 0
+        doc.insert(ignore_permissions=True)
+
+
+def _ensure_akd_role_profiles():
+    """Create 7 'AKD ...' Role Profiles bundling standard ERPNext roles per job function."""
+    for name, roles in AKD_ROLE_PROFILES.items():
+        if frappe.db.exists("Role Profile", name):
+            continue
+        doc = frappe.new_doc("Role Profile")
+        doc.role_profile = name
+        for r in roles:
+            if frappe.db.exists("Role", r):
+                doc.append("roles", {"role": r})
+        doc.insert(ignore_permissions=True)
+
+
+def _ensure_akd_module_profiles():
+    """Create 7 'AKD ...' Module Profiles using block-list approach (16 always-blocked
+    modules + per-profile extras). System Admin profile blocks nothing extra."""
+    for name, extra_blocks in AKD_MODULE_PROFILES.items():
+        if frappe.db.exists("Module Profile", name):
+            continue
+        doc = frappe.new_doc("Module Profile")
+        doc.module_profile_name = name
+        for m in (AKD_ALWAYS_BLOCKED_MODULES + extra_blocks):
+            doc.append("block_modules", {"module": m})
         doc.insert(ignore_permissions=True)
