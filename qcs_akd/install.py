@@ -191,19 +191,22 @@ AKD_ROLE_PROFILES = {
                               "Stock Manager", "HR Manager", "Employee"],
 }
 
-# Modules every AKD profile blocks (not in BRD scope / not used by service company).
+# Modules every AKD profile blocks (not in BRD scope).
+# Slimmed list — Frappe framework modules (Core, Desk, Email, etc), framework
+# integrations (Communication, Workflow, Setup, etc), and Quality Management
+# are NOT blocked even when not in scope — blocking them breaks UI / notifications,
+# and Quality Management is needed by Maureen/Subham.
 AKD_ALWAYS_BLOCKED_MODULES = [
-    "HR", "Payroll", "Manufacturing", "Education", "Healthcare", "Agriculture",
-    "Loan Management", "Non Profit", "Support", "Subcontracting", "Maintenance",
-    "Bulk Transaction", "Telephony", "Marketplace", "Hospitality", "Lending",
+    "HR", "Payroll", "Education", "Healthcare", "Agriculture",
+    "Loan Management", "Non Profit", "Marketplace", "Hospitality", "Lending",
 ]
 
 # Per-profile extra blocks (on top of AKD_ALWAYS_BLOCKED_MODULES).
 AKD_MODULE_PROFILES = {
-    "AKD Accounting":     ["Selling", "Buying", "CRM", "Projects", "Quality Management", "Stock"],
-    "AKD Buying":         ["Selling", "CRM", "Projects", "Quality Management", "Accounts", "Assets"],
+    "AKD Accounting":     ["Selling", "Buying", "CRM", "Projects", "Stock"],
+    "AKD Buying":         ["Selling", "CRM", "Projects", "Accounts", "Assets"],
     "AKD Sales Lead":     ["Buying", "Accounts", "Assets"],
-    "AKD Sales/Projects": ["Buying", "Accounts", "Assets", "Quality Management"],
+    "AKD Sales/Projects": ["Buying", "Accounts", "Assets"],
     "AKD Quality":        ["Buying", "Selling", "Accounts", "Assets", "Projects", "CRM", "Stock"],
     "AKD System Admin":   [],   # full access
 }
