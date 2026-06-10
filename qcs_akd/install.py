@@ -355,6 +355,7 @@ def after_install():
         _ensure_akd_role_profiles,
         _ensure_akd_module_profiles,
         _ensure_default_print_formats,
+        _ensure_crm_permission_scripts,
     ]
     skipped = []
     try:
@@ -623,6 +624,67 @@ def _ensure_item_tax_server_script():
     doc.disabled = 0
     doc.script = ITEM_TAX_SERVER_SCRIPT
     doc.insert(ignore_permissions=True)
+
+
+# ---------------------------------------------------------------------------
+# CRM rep-sees-own permission filters (FR-CRM-64/65) — Phase G7
+# ---------------------------------------------------------------------------
+# Permission Query Server Scripts: sales reps see only Leads/Opportunities they
+# own, created, or are assigned to. Sales Manager / System Manager / Accounts
+# Manager (and Administrator) see everything.
+#
+# SANDBOX GOTCHA: frappe.get_roles is NOT exposed in the Server Script safe
+# environment (AttributeError broke every Lead list on first deploy). Role
+# membership must be checked via frappe.get_all on the Has Role child table.
+# List-view filtering only — direct URL access isn't blocked (accepted v1).
+
+CRM_PERMISSION_SCRIPTS = {
+    "AKD Lead Own-Records Filter": ("Lead", """# FR-CRM-64/65 — sales reps see only their own Leads.
+user = frappe.session.user
+if user == "Administrator":
+    conditions = ""
+else:
+    is_mgr = frappe.get_all("Has Role", filters={"parenttype": "User", "parent": user,
+        "role": ["in", ["Sales Manager", "System Manager", "Accounts Manager"]]}, limit=1)
+    if is_mgr:
+        conditions = ""
+    else:
+        u = frappe.db.escape(user)
+        a = frappe.db.escape("%" + user + "%")
+        conditions = "(`tabLead`.lead_owner = " + u + " or `tabLead`.owner = " + u + " or ifnull(`tabLead`._assign,'') like " + a + ")"
+"""),
+    "AKD Opportunity Own-Records Filter": ("Opportunity", """# FR-CRM-64/65 — sales reps see only their own Opportunities.
+user = frappe.session.user
+if user == "Administrator":
+    conditions = ""
+else:
+    is_mgr = frappe.get_all("Has Role", filters={"parenttype": "User", "parent": user,
+        "role": ["in", ["Sales Manager", "System Manager", "Accounts Manager"]]}, limit=1)
+    if is_mgr:
+        conditions = ""
+    else:
+        u = frappe.db.escape(user)
+        a = frappe.db.escape("%" + user + "%")
+        conditions = "(`tabOpportunity`.owner = " + u + " or ifnull(`tabOpportunity`._assign,'') like " + a + ")"
+"""),
+}
+
+
+def _ensure_crm_permission_scripts():
+    """Create/refresh the 2 Permission Query scripts. Updates the script body if
+    it drifts from this file — install.py is the source of truth."""
+    for name, (ref_doctype, script) in CRM_PERMISSION_SCRIPTS.items():
+        if frappe.db.exists("Server Script", name):
+            if frappe.db.get_value("Server Script", name, "script") != script:
+                frappe.db.set_value("Server Script", name, "script", script)
+            continue
+        doc = frappe.new_doc("Server Script")
+        doc.name = name
+        doc.script_type = "Permission Query"
+        doc.reference_doctype = ref_doctype
+        doc.disabled = 0
+        doc.script = script
+        doc.insert(ignore_permissions=True)
 
 
 def _ensure_txn_fields_hidden():
