@@ -577,17 +577,51 @@ def _ensure_customer_tax_category_default():
 def _ensure_item_tax_autofill_script():
     """Client Script: when a new Item is opened, auto-append a Tax row with
     UAE VAT 5% - ACL + VAT-5. Skips on Items that already have a Tax row."""
-    if frappe.db.exists("Client Script", ITEM_TAX_CLIENT_SCRIPT_NAME):
+    if not frappe.db.exists("Client Script", ITEM_TAX_CLIENT_SCRIPT_NAME):
+        if not frappe.db.exists("Item Tax Template", DEFAULT_ITEM_TAX_TEMPLATE):
+            print(f"[qcs_akd] Item Tax Template '{DEFAULT_ITEM_TAX_TEMPLATE}' not found — skipping autofill script")
+            return
+        doc = frappe.new_doc("Client Script")
+        doc.name = ITEM_TAX_CLIENT_SCRIPT_NAME
+        doc.dt = "Item"
+        doc.view = "Form"
+        doc.enabled = 1
+        doc.script = ITEM_TAX_AUTOFILL_SCRIPT
+        doc.insert(ignore_permissions=True)
+    _ensure_item_tax_server_script()
+
+
+# Client Scripts only run in the browser — Items created via REST API or Data
+# Import bypass them (bit us in the G1 masters import: 5 items landed with no
+# taxes row). This Server Script fires on every save path.
+ITEM_TAX_SERVER_SCRIPT_NAME = "AKD Item Tax Default (server)"
+ITEM_TAX_SERVER_SCRIPT = """# Ensure every Item carries the default AKD tax row (works for UI + API + import).
+# Client Script 'AKD Item Tax Default' gives instant UI feedback; this is the safety net.
+template = "UAE VAT 5% - ACL"
+category = "VAT-5"
+if frappe.db.exists("Item Tax Template", template):
+    rows = doc.get("taxes") or []
+    has_template = False
+    for t in rows:
+        if t.item_tax_template == template:
+            has_template = True
+            if not t.tax_category:
+                t.tax_category = category
+    if not has_template:
+        doc.append("taxes", {"item_tax_template": template, "tax_category": category})
+"""
+
+
+def _ensure_item_tax_server_script():
+    if frappe.db.exists("Server Script", ITEM_TAX_SERVER_SCRIPT_NAME):
         return
-    if not frappe.db.exists("Item Tax Template", DEFAULT_ITEM_TAX_TEMPLATE):
-        print(f"[qcs_akd] Item Tax Template '{DEFAULT_ITEM_TAX_TEMPLATE}' not found — skipping autofill script")
-        return
-    doc = frappe.new_doc("Client Script")
-    doc.name = ITEM_TAX_CLIENT_SCRIPT_NAME
-    doc.dt = "Item"
-    doc.view = "Form"
-    doc.enabled = 1
-    doc.script = ITEM_TAX_AUTOFILL_SCRIPT
+    doc = frappe.new_doc("Server Script")
+    doc.name = ITEM_TAX_SERVER_SCRIPT_NAME
+    doc.script_type = "DocType Event"
+    doc.reference_doctype = "Item"
+    doc.doctype_event = "Before Save"
+    doc.disabled = 0
+    doc.script = ITEM_TAX_SERVER_SCRIPT
     doc.insert(ignore_permissions=True)
 
 
