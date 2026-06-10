@@ -354,6 +354,7 @@ def after_install():
         _ensure_akd_letter_head,
         _ensure_akd_role_profiles,
         _ensure_akd_module_profiles,
+        _ensure_default_print_formats,
     ]
     skipped = []
     try:
@@ -683,3 +684,44 @@ def _ensure_akd_module_profiles():
         for m in (AKD_ALWAYS_BLOCKED_MODULES + extra_blocks):
             doc.append("block_modules", {"module": m})
         doc.insert(ignore_permissions=True)
+
+
+# Per-doctype default print format → the branded AKD format.
+# Implemented via Property Setter (property='default_print_format') so users get
+# the AKD layout automatically when they hit Print. Only applies if the AKD
+# print format exists (shipped under qcs_akd/print_format/).
+AKD_DEFAULT_PRINT_FORMATS = {
+    "Quotation":             "AKD Quotation",
+    "Sales Order":           "AKD Sales Order",
+    "Sales Invoice":         "AKD Sales Invoice",
+    "Delivery Note":         "AKD Delivery Note",
+    "Request for Quotation": "AKD Request for Quotation",
+    "Purchase Order":        "AKD Purchase Order",
+    "Purchase Receipt":      "AKD Purchase Receipt",
+    "Purchase Invoice":      "AKD Purchase Invoice",
+}
+
+
+def _ensure_default_print_formats():
+    """Set the AKD branded print format as the default per transaction doctype.
+    Idempotent: updates the existing default_print_format Property Setter if present,
+    else creates one. Skips a doctype whose AKD print format isn't installed."""
+    for dt, pf in AKD_DEFAULT_PRINT_FORMATS.items():
+        if not frappe.db.exists("Print Format", pf):
+            continue
+        existing = frappe.db.get_value(
+            "Property Setter",
+            {"doc_type": dt, "property": "default_print_format"},
+            "name",
+        )
+        if existing:
+            frappe.db.set_value("Property Setter", existing, "value", pf)
+            continue
+        frappe.get_doc({
+            "doctype":          "Property Setter",
+            "doctype_or_field": "DocType",
+            "doc_type":         dt,
+            "property":         "default_print_format",
+            "property_type":    "Data",
+            "value":            pf,
+        }).insert(ignore_permissions=True)
