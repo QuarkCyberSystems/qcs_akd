@@ -1,8 +1,10 @@
 {%- set company = frappe.get_doc("Company", doc.company) -%}
 {%- set company_address = frappe.get_doc("Address", doc.company_address) if doc.company_address else None -%}
 {%- set customer_address = frappe.get_doc("Address", doc.customer_address) if doc.customer_address else None -%}
-{%- set bank_aed = frappe.db.get_value("Bank Account", {"company": doc.company, "account_currency": "AED", "disabled": 0}, ["account_name", "bank", "bank_account_no", "iban", "swift_number"], as_dict=True) -%}
-{%- set bank_usd = frappe.db.get_value("Bank Account", {"company": doc.company, "account_currency": "USD", "disabled": 0}, ["account_name", "bank", "bank_account_no", "iban", "swift_number"], as_dict=True) -%}
+{%- set bank_aed = frappe.db.get_value("Bank Account", {"company": doc.company, "account_currency": "AED", "disabled": 0}, ["account_name", "bank", "bank_account_no", "iban"], as_dict=True) -%}
+{%- set bank_usd = frappe.db.get_value("Bank Account", {"company": doc.company, "account_currency": "USD", "disabled": 0}, ["account_name", "bank", "bank_account_no", "iban"], as_dict=True) -%}
+{%- set bank_aed_swift = frappe.db.get_value("Bank", bank_aed.bank, "swift_number") if bank_aed and bank_aed.bank else None -%}
+{%- set bank_usd_swift = frappe.db.get_value("Bank", bank_usd.bank, "swift_number") if bank_usd and bank_usd.bank else None -%}
 
 <div class="akd-invoice" style="font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10pt; color: #111;">
 
@@ -160,7 +162,7 @@
             Account Name: AKD Consulting LLC<br />
             Account No: {{ bank_aed.bank_account_no or '' }}<br />
             {% if bank_aed.iban %}IBAN: {{ bank_aed.iban }}<br />{% endif %}
-            {% if bank_aed.swift_number %}SWIFT: {{ bank_aed.swift_number }}{% endif %}
+            {% if bank_aed_swift %}SWIFT: {{ bank_aed_swift }}{% endif %}
           </td>
         {% endif %}
         {% if bank_usd %}
@@ -170,7 +172,7 @@
             Account Name: AKD Consulting LLC<br />
             Account No: {{ bank_usd.bank_account_no or '' }}<br />
             {% if bank_usd.iban %}IBAN: {{ bank_usd.iban }}<br />{% endif %}
-            {% if bank_usd.swift_number %}SWIFT: {{ bank_usd.swift_number }}{% endif %}
+            {% if bank_usd_swift %}SWIFT: {{ bank_usd_swift }}{% endif %}
           </td>
         {% endif %}
       </tr>

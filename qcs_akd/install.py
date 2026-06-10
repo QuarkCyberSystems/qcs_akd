@@ -241,7 +241,7 @@ AKD_LETTER_HEAD_HEADER = """\
 AKD_LETTER_HEAD_FOOTER = """\
 {%- set company = doc.company or 'AKD Consulting LLC' -%}
 {%- set address_names = frappe.get_all("Dynamic Link", filters={"link_doctype":"Company","link_name":company,"parenttype":"Address"}, pluck="parent") -%}
-{%- set bank_accounts = frappe.get_all("Bank Account", filters={"company":company,"is_company_account":1,"disabled":0}, fields=["account_name","iban","swift_number"]) -%}
+{%- set bank_accounts = frappe.get_all("Bank Account", filters={"company":company,"is_company_account":1,"disabled":0}, fields=["account_name","iban","bank"]) -%}
 <div style="font-size:8px;color:#555;border-top:1px solid #ccc;padding-top:6px;margin-top:8px;">
   <table style="width:100%;font-size:8px;line-height:1.3;">
     <tr>
@@ -261,7 +261,7 @@ AKD_LETTER_HEAD_FOOTER = """\
   {% if bank_accounts %}
   <div style="margin-top:6px;text-align:center;border-top:1px dotted #ddd;padding-top:4px;">
     {% for b in bank_accounts %}
-      <b>{{ b.account_name }}</b> · IBAN {{ b.iban or '-' }} · SWIFT {{ b.swift_number or '-' }}{% if not loop.last %} &nbsp;|&nbsp; {% endif %}
+      <b>{{ b.account_name }}</b> · IBAN {{ b.iban or '-' }} · SWIFT {{ frappe.db.get_value("Bank", b.bank, "swift_number") or '-' }}{% if not loop.last %} &nbsp;|&nbsp; {% endif %}
     {% endfor %}
   </div>
   {% endif %}
