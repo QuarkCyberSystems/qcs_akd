@@ -382,8 +382,18 @@ def setup_company_defaults(company):
     if not frappe.db.exists("Company", company):
         frappe.throw(f"Company '{company}' does not exist. Create it first.")
     _ensure_cost_centers(company)
+    _ensure_service_company_settings(company)
     frappe.db.commit()
-    print(f"[qcs_akd] setup_company_defaults: cost centers ensured for {company}.")
+    print(f"[qcs_akd] setup_company_defaults: cost centers + service-company settings ensured for {company}.")
+
+
+def _ensure_service_company_settings(company):
+    """AKD is a service company: perpetual inventory must be OFF (otherwise
+    Purchase Invoices on non-stock items demand a 'Stock Received But Not Billed'
+    account that doesn't exist). Surfaced by the G2 workflow smoke test.
+    Idempotent — only writes if currently enabled."""
+    if frappe.db.get_value("Company", company, "enable_perpetual_inventory"):
+        frappe.db.set_value("Company", company, "enable_perpetual_inventory", 0)
 
 
 # ---------------------------------------------------------------------------
