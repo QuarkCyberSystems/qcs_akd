@@ -611,6 +611,42 @@ def _ensure_txn_fields_hidden():
                                   for_doctype=False, validate_fields_for_doctype=False)
         except Exception as e:
             print(f"[qcs_akd] hide {doctype}.{field}: {type(e).__name__}: {e}")
+    _ensure_naming_series_defaults()
+
+
+# naming_series is reqd=1 in core, and Frappe rejects a field that is
+# hidden + mandatory + no default ("Field Series in row N cannot be hidden and
+# mandatory without default"). Since F5 hides Series on the 7 transaction forms,
+# each needs a default = its standard series. Harmless for naming — the AKD
+# Document Naming Rules still override and produce AKD-SO-2026-... names.
+NAMING_SERIES_DEFAULTS = {
+    "Sales Invoice":    "ACC-SINV-.YYYY.-",
+    "Delivery Note":    "MAT-DN-.YYYY.-",
+    "Sales Order":      "SAL-ORD-.YYYY.-",
+    "Quotation":        "SAL-QTN-.YYYY.-",
+    "Purchase Invoice": "ACC-PINV-.YYYY.-",
+    "Purchase Receipt": "MAT-PRE-.YYYY.-",
+    "Purchase Order":   "PUR-ORD-.YYYY.-",
+}
+
+
+def _ensure_naming_series_defaults():
+    from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+    for doctype, series in NAMING_SERIES_DEFAULTS.items():
+        existing = frappe.db.get_value(
+            "Property Setter",
+            {"doc_type": doctype, "field_name": "naming_series", "property": "default"},
+            "name",
+        )
+        if existing:
+            if frappe.db.get_value("Property Setter", existing, "value") != series:
+                frappe.db.set_value("Property Setter", existing, "value", series)
+            continue
+        try:
+            make_property_setter(doctype, "naming_series", "default", series, "Text",
+                                  for_doctype=False, validate_fields_for_doctype=False)
+        except Exception as e:
+            print(f"[qcs_akd] naming_series default {doctype}: {type(e).__name__}: {e}")
 
 
 def _ensure_akd_currencies_enabled():
